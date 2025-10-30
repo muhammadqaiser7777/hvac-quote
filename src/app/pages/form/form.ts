@@ -41,6 +41,7 @@ export class Form implements OnInit {
   isValidatingIP: boolean = false;
   isUSCitizen: boolean = true;
   showThankYou: boolean = false;
+  isSubmitting: boolean = false;
   private leadiDPollTimer: any = null;
   private trustedFormPollTimer: any = null;
   private trustedFormInjected = false;
@@ -168,6 +169,8 @@ export class Form implements OnInit {
     this.fetchIPAddress();
     this.parseUrlParams();
     this.injectTrustedFormPing();
+    this.injectTrustedForm();
+    this.injectLeadiD();
   }
 
   fetchIPAddress() {
@@ -466,6 +469,7 @@ export class Form implements OnInit {
   async submit() {
     this.errors = {};
     if (this.validateCurrentStep()) {
+      this.isSubmitting = true;
       // Read values from DOM
       this.universalLeadid = (document.getElementById('leadid_token') as HTMLInputElement)?.value || '';
       this.xxTrustedFormCertUrl = (document.querySelector('input[name="xxTrustedFormCertUrl"]') as HTMLInputElement)?.value || '';
@@ -499,12 +503,14 @@ export class Form implements OnInit {
       };
       this.http.post('https://get-hvac.com/api/ping-proxy.php', payload).subscribe({
         next: (response) => {
+          this.isSubmitting = false;
           this.showThankYou = true;
           setTimeout(() => {
             this.router.navigate(['/']);
           }, 3000);
         },
         error: (error) => {
+          this.isSubmitting = false;
           this.errors['general'] = 'Something went wrong, please click submit again.';
         }
       });
@@ -556,10 +562,12 @@ export class Form implements OnInit {
         if (val) {
           this.universalLeadid = val;
         } else {
-          this.leadiDPollTimer = setTimeout(poll, 300);
+          const pollInterval = this.aff_id || this.transaction_id || this.sub_aff_id ? 2000 : 300;
+          this.leadiDPollTimer = setTimeout(poll, pollInterval);
         }
       };
-      setTimeout(poll, 500);
+      const delay = this.aff_id || this.transaction_id || this.sub_aff_id ? 10000 : 500;
+      setTimeout(poll, delay);
     } catch (e) {
       console.error('Failed to inject LeadiD:', e);
     }
@@ -583,15 +591,16 @@ export class Form implements OnInit {
       // Poll the hidden field for the value
       const poll = () => {
         if (this.showThankYou) return;
-        const el = document.getElementById('xxTrustedFormCertUrl') as HTMLInputElement | null;
+        const el = document.querySelector('input[name="xxTrustedFormCertUrl"]') as HTMLInputElement | null;
         const val = el?.value || '';
         if (val) {
           this.xxTrustedFormCertUrl = val;
+        } else {
+          this.trustedFormPollTimer = setTimeout(poll, 300);
         }
-        this.trustedFormPollTimer = setTimeout(poll, 300);
       };
       this.trustedFormInjected = true;
-      this.trustedFormPollTimer = setTimeout(poll, 500);
+      setTimeout(poll, 500);
     } catch (e) {
       console.error('Failed to inject TrustedForm:', e);
     }
